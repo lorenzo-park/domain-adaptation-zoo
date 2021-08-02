@@ -1,0 +1,10 @@
+model_name: source_only
+
+defaults:
+  - ${model_name}/config
+
+project: domain-adaptation
+seed: 42
+gpus: 1
+lr_finder: false
+logger: false

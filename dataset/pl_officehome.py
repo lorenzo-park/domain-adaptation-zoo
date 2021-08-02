@@ -19,13 +19,15 @@ class OfficeHomeDataModule(pl.LightningDataModule):
   def __init__(self, root: str, batch_size: int, num_workers: int,
                src_task: str,
                tgt_task: Optional[str] = None,
-               download: Optional[bool] = False):
+               download: Optional[bool] = False,
+               debug: bool = True):
     super().__init__()
 
     self.root = os.path.join(root, "data", "officehome")
     self.src_task = src_task
     self.tgt_task = tgt_task
     self.download = download
+    self.debug = debug
     self.transform = get_transforms_officehome()
 
     self.batch_size = batch_size
@@ -104,7 +106,7 @@ class OfficeHomeDataModule(pl.LightningDataModule):
     }, "max_size_cycle")
 
   def val_dataloader(self):
-    if self.tgt_task:
+    if self.tgt_task and self.debug:
       return DataLoader(self.trainset_tgt, batch_size=self.batch_size,
                         num_workers=self.num_workers, drop_last=True)
     else:

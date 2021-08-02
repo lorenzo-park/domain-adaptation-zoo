@@ -1,4 +1,6 @@
 import timm
+import torch
+import torchmetrics
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,32 +8,36 @@ import pytorch_lightning as pl
 
 
 class LitTimm(pl.LightningModule):
-  def __init__(self, config_model):
+  def __init__(self, config_model, config_training, num_classes, learning_rate=None):
     super().__init__()
 
-    self.feature_extractor = timm.create_model(
-        config_model.backbone,
-        pretrained=False,
-        num_classes=0
-    )
+    self.config_training = config_training
+
+    if learning_rate:
+      self.learning_rate = learning_rate
+    else:
+      self.learning_rate = self.config_training.lr
 
     in_features = self.get_in_features(config_model.backbone)
 
+    self.feature_extractor = timm.create_model(
+        config_model.backbone,
+        pretrained=True,
+        num_classes=0
+    )
     self.classifier = nn.Sequential(
         nn.Dropout(0.3),
-        nn.Linear(in_features, config_model.classes),
+        nn.Linear(in_features, num_classes),
     )
 
     self.model = nn.Sequential(
-      self.feature_extractor,
-      self.classifier,
+        self.feature_extractor,
+        self.classifier,
     )
 
-    self.train_accuracy = pl.metrics.Accuracy()
-    self.val_accuracy_src = pl.metrics.Accuracy()
-    self.val_accuracy_tgt = pl.metrics.Accuracy()
-    self.test_accuracy_src = pl.metrics.Accuracy()
-    self.test_accuracy_tgt = pl.metrics.Accuracy()
+    self.train_accuracy = torchmetrics.Accuracy()
+    self.val_accuracy = torchmetrics.Accuracy()
+    self.test_accuracy = torchmetrics.Accuracy()
 
   def training_step(self, batch, batch_idx):
     inputs, targets = batch["src"]
@@ -50,55 +56,66 @@ class LitTimm(pl.LightningModule):
 
   def validation_step(self, batch, batch_idx):
     # Evaluate on source dataset
-    inputs, targets = batch["src"]
+    inputs, targets = batch
 
     outputs = self.model(inputs)
     loss = F.cross_entropy(outputs, targets)
 
     self.log("val_loss", loss, on_step=False, on_epoch=True, sync_dist=True)
-    self.val_accuracy_src(outputs, targets)
-
-    # Evaluate on target dataset
-    inputs, targets = batch["tgt"]
-
-    outputs = self.model(inputs)
-    loss = F.cross_entropy(outputs, targets)
-
-    self.val_accuracy_tgt(outputs, targets)
+    self.val_accuracy(outputs, targets)
 
     return loss
 
   def validation_epoch_end(self, _):
-    self.log("val_acc_src", self.val_accuracy_src.compute(),
-             prog_bar=True, logger=True, sync_dist=True)
-    self.log("val_acc_tgt", self.val_accuracy_tgt.compute(),
+    self.log("val_acc", self.val_accuracy.compute(),
              prog_bar=True, logger=True, sync_dist=True)
 
   def test_step(self, batch, batch_idx):
     # Evaluate on source dataset
-    inputs, targets = batch["src"]
-
+    inputs, targets = batch
     outputs = self.model(inputs)
     loss = F.cross_entropy(outputs, targets)
 
     self.log("test_loss", loss, on_step=False, on_epoch=True, sync_dist=True)
-    self.test_accuracy_src(outputs, targets)
-
-    # Evaluate on target dataset
-    inputs, targets = batch["tgt"]
-
-    outputs = self.model(inputs)
-    loss = F.cross_entropy(outputs, targets)
-
-    self.test_accuracy_tgt(outputs, targets)
+    self.test_accuracy(outputs, targets)
 
     return loss
 
   def test_epoch_end(self, _):
-    self.log("test_acc_src", self.test_accuracy_src.compute(),
+    self.log("test_acc", self.test_accuracy.compute(),
              prog_bar=True, logger=True, sync_dist=True)
-    self.log("test_acc_tgt", self.test_accuracy_tgt.compute(),
-             prog_bar=True, logger=True, sync_dist=True)
+
+  def configure_optimizers(self):
+    model_params = [
+        {
+            "params": self.feature_extractor.parameters(),
+            "lr": self.learning_rate * self.config_training.w_enc
+        },
+        {
+            "params": self.classifier.parameters(),
+            "lr": self.learning_rate * self.config_training.w_cls
+        },
+    ]
+    if self.config_training.optimizer == "sgd":
+      optimizer = torch.optim.SGD(
+          model_params,
+          lr=self.learning_rate,
+          momentum=0.9,
+          weight_decay=1e-5,
+          nesterov=True,
+      )
+    elif self.config_training.optimizer == "adam":
+      optimizer = torch.optim.Adam(
+          model_params,
+          lr=self.learning_rate,
+      )
+    elif self.config_training.optimizer == "adamw":
+      optimizer = torch.optim.AdamW(
+          model_params,
+          lr=self.learning_rate,
+      )
+
+    return optimizer
 
   def get_in_features(self, backbone):
     if "resnet50" == backbone:

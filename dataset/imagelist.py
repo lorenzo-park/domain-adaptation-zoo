@@ -2,10 +2,12 @@
 CREDIT: https://github.com/thuml/Transfer-Learning-Library/tree/dev/dalib/vision/datasets
 """
 
-import os
-from typing import Optional, Callable, Tuple, Any, List
-import torchvision.datasets as datasets
+from torch.utils.data import random_split
 from torchvision.datasets.folder import default_loader
+from typing import Optional, Callable, Tuple, Any, List
+
+import os
+import torchvision.datasets as datasets
 
 
 class ImageList(datasets.VisionDataset):
@@ -27,9 +29,10 @@ class ImageList(datasets.VisionDataset):
       If your data_list_file has different formats, please over-ride `parse_data_file`.
   """
 
-  def __init__(self, root: str, classes: List[str], data_list_file: str,
+  def __init__(self, root: str, classes: List[str], split: str, data_list_file: str,
                transform: Optional[Callable] = None, target_transform: Optional[Callable] = None):
     super().__init__(root, transform=transform, target_transform=target_transform)
+    self.split = split
     self.data = self.parse_data_file(data_list_file)
     self.classes = classes
     self.class_to_idx = {cls: idx
@@ -68,7 +71,22 @@ class ImageList(datasets.VisionDataset):
           path = os.path.join(self.root, path)
         target = int(target)
         data_list.append((path, target))
-    return data_list
+
+    split_lengths = [
+        len(data_list) - len(data_list) // 10,
+        len(data_list) // 10
+    ]
+
+    data_list_file_src, data_list_file_src_val = random_split(
+        data_list, split_lengths
+    )
+
+    if self.split == "train":
+      return data_list_file_src
+    elif self.split == "val":
+      return data_list_file_src_val
+    else:
+      return data_list
 
   @property
   def num_classes(self) -> int:

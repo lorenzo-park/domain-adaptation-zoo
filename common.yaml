@@ -3,6 +3,14 @@ model_name: source_only
 defaults:
   - ${model_name}/config
 
+dataset:
+  name: officehome
+  root: /home/lorenzo-lab/publication/domain-adaptation-pytorch-lightning
+  batch_size: 32
+  num_workers: 8
+  src_task: Ar
+  tgt_task: Cl
+
 project: domain-adaptation
 seed: 42
 gpus: 1

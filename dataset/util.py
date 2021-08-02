@@ -1,3 +1,6 @@
+"""
+CREDIT: https://github.com/thuml/Transfer-Learning-Library/tree/dev/dalib/vision/datasets
+"""
 from torchvision.datasets.utils import download_and_extract_archive
 
 import os

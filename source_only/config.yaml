@@ -1,7 +1,10 @@
 # @package _global_
 model:
   backbone: resnet50
-  classes: 4
 
 training:
   epoch: 50
+  w_enc: 1.0
+  w_cls: 1.0
+  optimizer: adam
+  lr: 1e-2

@@ -1,11 +1,12 @@
+from pytorch_lightning.metrics.utils import get_num_classes
 import torch.nn as nn
 
 from source_only.model import LitTimm
 
 
-def get_model(config):
+def get_model(config, num_classes):
   if config.model_name == "source_only":
-    return LitTimm(config.model)
+    return LitTimm(config.model, config.training, num_classes)
 
 
 def init_weights(m):

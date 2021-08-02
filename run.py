@@ -3,6 +3,7 @@ import hydra
 import pytorch_lightning as pl
 
 from utils.model import get_model
+from utils.dataset import get_datamodule
 
 
 @hydra.main(config_path=".", config_name="common")
@@ -22,6 +23,8 @@ def run(config):
         )
         logger.log_hyperparams(config)
 
+    datamodule = get_datamodule(config.dataset)
+    model = get_model(config, len(datamodule.CLASSES))
     trainer = pl.Trainer(
         precision=16,
         auto_lr_find=True if config.lr_finder else None,
@@ -33,14 +36,12 @@ def run(config):
         weights_summary="top",
     )
 
-    model = get_model(config)
-
     if config.lr_finder:
         lr_finder = trainer.tuner.lr_find(model, min_lr=1e-8, max_lr=1e-1, num_training=100)
         model.hparams.lr = lr_finder.suggestion()
         print(model.hparams.lr)
     else:
-        trainer.fit(model)
+        trainer.fit(model, datamodule=datamodule)
         trainer.test()
 
 

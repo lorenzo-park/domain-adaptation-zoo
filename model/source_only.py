@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 
 
 class LitTimm(pl.LightningModule):
-  def __init__(self, config_model, config_training, num_classes, learning_rate=None):
+  def __init__(self, config_backbone, config_training, num_classes, learning_rate=None):
     super().__init__()
 
     self.config_training = config_training
@@ -18,21 +18,16 @@ class LitTimm(pl.LightningModule):
     else:
       self.learning_rate = self.config_training.lr
 
-    in_features = self.get_in_features(config_model.backbone)
+    in_features = self.get_in_features(config_backbone.name)
 
     self.feature_extractor = timm.create_model(
-        config_model.backbone,
+        config_backbone.name,
         pretrained=True,
         num_classes=0
     )
     self.classifier = nn.Sequential(
         nn.Dropout(0.3),
         nn.Linear(in_features, num_classes),
-    )
-
-    self.model = nn.Sequential(
-        self.feature_extractor,
-        self.classifier,
     )
 
     self.train_accuracy = torchmetrics.Accuracy()
@@ -42,7 +37,7 @@ class LitTimm(pl.LightningModule):
   def training_step(self, batch, batch_idx):
     inputs, targets = batch["src"]
 
-    outputs = self.model(inputs)
+    outputs = self.forward_cls(inputs)
     loss = F.cross_entropy(outputs, targets)
 
     self.log("train_loss", loss, on_step=False, on_epoch=True, sync_dist=True)
@@ -58,7 +53,7 @@ class LitTimm(pl.LightningModule):
     # Evaluate on source dataset
     inputs, targets = batch
 
-    outputs = self.model(inputs)
+    outputs = self.forward_cls(inputs)
     loss = F.cross_entropy(outputs, targets)
 
     self.log("val_loss", loss, on_step=False, on_epoch=True, sync_dist=True)
@@ -73,7 +68,7 @@ class LitTimm(pl.LightningModule):
   def test_step(self, batch, batch_idx):
     # Evaluate on source dataset
     inputs, targets = batch
-    outputs = self.model(inputs)
+    outputs = self.forward_cls(inputs)
     loss = F.cross_entropy(outputs, targets)
 
     self.log("test_loss", loss, on_step=False, on_epoch=True, sync_dist=True)
@@ -116,6 +111,12 @@ class LitTimm(pl.LightningModule):
       )
 
     return optimizer
+
+  def forward_cls(self, x):
+    x = self.feature_extractor(x)
+    x = self.classifier(x)
+
+    return x
 
   def get_in_features(self, backbone):
     if "resnet50" == backbone:

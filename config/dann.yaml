@@ -1,0 +1,18 @@
+# @package _global_
+model_name: dann
+
+backbone:
+  name: resnet50
+
+training:
+  epoch: 20
+  w_enc: 0.1
+  w_cls: 1.0
+  optimizer: sgd
+  lr: 1e-2
+  batch_size: 32
+
+  alpha: 10
+  gamma: 10
+  beta: 0.75
+  lr_schedule: false

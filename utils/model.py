@@ -1,12 +1,16 @@
 from pytorch_lightning.metrics.utils import get_num_classes
+
 import torch.nn as nn
 
-from source_only.model import LitTimm
+from model.source_only import LitTimm
+from model.dann import LitDANN
 
 
 def get_model(config, num_classes):
   if config.model_name == "source_only":
-    return LitTimm(config.model, config.training, num_classes)
+    return LitTimm(config.backbone, config.training, num_classes)
+  if config.model_name == "dann":
+    return LitDANN(config.backbone, config.training, num_classes)
 
 
 def init_weights(m):
